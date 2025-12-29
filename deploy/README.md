@@ -1,204 +1,204 @@
-# AI Chat - Инструкция по деплою
+# AI Chat - Deploy Scripts
 
-## Быстрый старт
-
-### 1. Клонирование репозитория
+## Быстрый деплой
 
 ```bash
-git clone https://github.com/Prophet73/ai-chat-test-.git ai-chat
-cd ai-chat
-```
+# 1. Клонировать репозиторий
+cd /opt
+sudo git clone https://github.com/Prophet73/ai-chat-test-.git ai-chat-test
+cd ai-chat-test
+sudo chown -R $USER:$USER .
 
-### 2. Настройка конфигурации
-
-```bash
-cp deploy/.env.example .env
+# 2. Создать .env файл
 nano .env
+# (вставить конфигурацию, см. ниже)
+
+# 3. Запустить установку
+chmod +x deploy/install.sh
+./deploy/install.sh
 ```
 
-Заполните обязательные поля:
+---
+
+## Скрипты
+
+| Скрипт | Описание |
+|--------|----------|
+| `install.sh` | Полная установка: Docker, сборка образа, systemd сервис |
+| `update.sh` | Обновление из git и пересборка контейнера |
+| `run_local.sh` | Локальный запуск для разработки (Linux/Mac) |
+| `run_local.bat` | Локальный запуск для разработки (Windows) |
+
+---
+
+## Конфигурация .env
 
 ```env
 # Flask
 FLASK_SECRET_KEY="сгенерируйте-случайную-строку-32-символа"
+FLASK_DEBUG=false
+FLASK_HOST=0.0.0.0
+FLASK_PORT=5001
 
 # Google Gemini API
 GEMINI_API_KEY="ваш-ключ-gemini"
+GEMINI_MODEL_NAME="gemini-2.5-flash"
 
-# OAuth2 (получить в Hub Admin -> Applications)
+# OAuth2 Hub
 HUB_BASE_URL="https://ai-hub.svrd.ru"
-HUB_CLIENT_ID="client_id_из_хаба"
-HUB_CLIENT_SECRET="client_secret_из_хаба"
+HUB_CLIENT_ID="получить-в-hub-admin"
+HUB_CLIENT_SECRET="получить-в-hub-admin"
 
-# URL этого приложения (где будет развернут ai-chat)
-APP_BASE_URL="https://ai-chat.your-domain.ru"
+# URL этого приложения
+APP_BASE_URL="https://ai-chat.svrd.ru"
 
-# Отключить dev mode для продакшена!
+# Режим (false для продакшена!)
 DEV_MODE=false
 ```
 
-### 3. Регистрация приложения в Hub
+---
 
-1. Зайдите в Hub Admin: https://ai-hub.svrd.ru/admin
-2. Перейдите в **Applications** → **Create**
-3. Заполните:
-   - **Name:** AI Chat
-   - **Redirect URI:** `https://ai-chat.your-domain.ru/auth/callback`
-4. Скопируйте `client_id` и `client_secret` в `.env`
+## install.sh - Что делает
+
+1. **Устанавливает Docker** (если не установлен)
+   - Docker CE
+   - Docker Compose plugin
+   - Добавляет пользователя в группу docker
+
+2. **Проверяет .env** файл
+   - Если нет - показывает пример и выходит
+
+3. **Собирает Docker образ**
+   - `docker compose build`
+
+4. **Запускает контейнер**
+   - `docker compose up -d`
+
+5. **Создаёт systemd сервис**
+   - `/etc/systemd/system/ai-chat.service`
+   - Включает автозапуск при старте системы
+
+6. **Проверяет работу**
+   - curl http://localhost:5001
 
 ---
 
-## Варианты деплоя
-
-### Вариант A: Docker (рекомендуется)
+## Управление сервисом
 
 ```bash
-# Запуск с docker-compose
-docker-compose up -d
-
-# Или только приложение без nginx
-docker-compose up -d ai-chat
-```
-
-Приложение будет доступно на порту `5001`.
-
-### Вариант B: Скрипт деплоя
-
-```bash
-chmod +x deploy/deploy.sh
-./deploy/deploy.sh
-```
-
-Скрипт автоматически:
-- Создаст виртуальное окружение
-- Установит зависимости
-- Запустит через gunicorn на порту 5001
-
-### Вариант C: Systemd сервис
-
-```bash
-# Создание сервиса
-sudo nano /etc/systemd/system/ai-chat.service
-```
-
-```ini
-[Unit]
-Description=AI Chat Service
-After=network.target
-
-[Service]
-Type=simple
-User=www-data
-WorkingDirectory=/opt/ai-chat
-Environment=PATH=/opt/ai-chat/venv/bin
-ExecStart=/opt/ai-chat/venv/bin/gunicorn --workers 4 --bind 0.0.0.0:5001 src.app:app
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable ai-chat
-sudo systemctl start ai-chat
-```
-
----
-
-## Настройка Nginx (reverse proxy)
-
-```bash
-sudo cp deploy/nginx.conf /etc/nginx/sites-available/ai-chat
-sudo ln -s /etc/nginx/sites-available/ai-chat /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-Не забудьте:
-1. Изменить `server_name` в nginx.conf на ваш домен
-2. Настроить SSL сертификаты (Let's Encrypt или свои)
-
-### SSL с Let's Encrypt
-
-```bash
-sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d ai-chat.your-domain.ru
-```
-
----
-
-## Проверка работы
-
-```bash
-# Статус сервиса
+# Статус
 sudo systemctl status ai-chat
 
-# Логи
+# Перезапуск
+sudo systemctl restart ai-chat
+
+# Остановка
+sudo systemctl stop ai-chat
+
+# Запуск
+sudo systemctl start ai-chat
+
+# Логи Docker
+docker compose logs -f
+
+# Логи systemd
 sudo journalctl -u ai-chat -f
-
-# Или для Docker
-docker-compose logs -f ai-chat
 ```
 
 ---
 
-## Локальная разработка
+## update.sh - Обновление
 
-### Windows
-```cmd
-deploy\run_local.bat
-```
-
-### Linux/Mac
 ```bash
-chmod +x deploy/run_local.sh
-./deploy/run_local.sh
+./deploy/update.sh
 ```
 
-В режиме разработки (`DEV_MODE=true`) авторизация пропускается.
+Скрипт:
+1. `git pull origin main` - получает изменения
+2. `docker compose build` - пересобирает образ
+3. `docker compose up -d` - перезапускает контейнер
 
 ---
 
-## Структура проекта
+## Настройка внешнего Nginx
 
+Добавить в конфиг nginx для `ai-chat.svrd.ru`:
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name ai-chat.svrd.ru;
+
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+
+    location / {
+        proxy_pass http://IP_СЕРВЕРА:5001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # SSE для стриминга чата
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 86400;
+    }
+}
+
+server {
+    listen 80;
+    server_name ai-chat.svrd.ru;
+    return 301 https://$host$request_uri;
+}
 ```
-ai-chat/
-├── src/
-│   ├── app.py           # Точка входа Flask
-│   ├── config.py        # Конфигурация из .env
-│   ├── auth.py          # OAuth2 авторизация с Hub
-│   ├── admin.py         # Админ-панель
-│   ├── routes.py        # Основные роуты чата
-│   ├── gemini_client.py # Клиент Google Gemini
-│   ├── rag.py           # RAG система
-│   └── prompts.py       # Промпты для AI
-├── templates/           # HTML шаблоны
-├── static/              # CSS, JS, изображения
-├── documents/           # База знаний (документы)
-├── deploy/
-│   ├── deploy.sh        # Скрипт деплоя
-│   ├── run_local.sh     # Локальный запуск (Linux)
-│   ├── run_local.bat    # Локальный запуск (Windows)
-│   ├── nginx.conf       # Конфиг Nginx
-│   └── .env.example     # Пример конфигурации
-├── Dockerfile
-├── docker-compose.yml
-└── requirements.txt
-```
+
+---
+
+## Регистрация в Hub
+
+1. Открыть https://ai-hub.svrd.ru/admin
+2. **Applications** → **Create**
+3. Заполнить:
+   - Name: `AI Chat`
+   - Redirect URI: `https://ai-chat.svrd.ru/auth/callback`
+4. Скопировать `client_id` и `client_secret`
+5. Вставить в `.env`
+6. Перезапустить: `sudo systemctl restart ai-chat`
 
 ---
 
 ## Troubleshooting
 
-### Ошибка подключения к Hub
-- Проверьте доступность `ai-hub.svrd.ru` с сервера
-- Проверьте правильность `HUB_CLIENT_ID` и `HUB_CLIENT_SECRET`
-- Убедитесь что `APP_BASE_URL` совпадает с Redirect URI в Hub
+### Docker не запускается
+```bash
+# Проверить статус Docker
+sudo systemctl status docker
 
-### 502 Bad Gateway
-- Проверьте что ai-chat сервис запущен: `systemctl status ai-chat`
-- Проверьте порт: `netstat -tlnp | grep 5001`
+# Запустить Docker
+sudo systemctl start docker
+```
 
-### OAuth callback error
-- Проверьте что Redirect URI в Hub точно совпадает с `APP_BASE_URL/auth/callback`
+### Ошибка прав доступа Docker
+```bash
+# Добавить пользователя в группу docker
+sudo usermod -aG docker $USER
+
+# Перелогиниться или выполнить
+newgrp docker
+```
+
+### Приложение не отвечает
+```bash
+# Проверить контейнер
+docker ps -a
+
+# Посмотреть логи
+docker compose logs -f
+```
+
+### Ошибка OAuth
+- Проверить что `APP_BASE_URL` совпадает с Redirect URI в Hub
+- Проверить `HUB_CLIENT_ID` и `HUB_CLIENT_SECRET`
+- Проверить доступность `ai-hub.svrd.ru` с сервера

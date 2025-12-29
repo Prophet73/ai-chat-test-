@@ -156,7 +156,40 @@ build_and_run() {
 }
 
 # ============================================
-# 5. Проверка работы
+# 5. Создание systemd сервиса
+# ============================================
+setup_systemd() {
+    log_info "Создание systemd сервиса..."
+
+    SERVICE_FILE="/etc/systemd/system/ai-chat.service"
+
+    sudo tee $SERVICE_FILE > /dev/null <<EOF
+[Unit]
+Description=AI Chat Docker Service
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=$APP_DIR
+ExecStart=/usr/bin/docker compose up -d
+ExecStop=/usr/bin/docker compose down
+ExecReload=/usr/bin/docker compose restart
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    sudo systemctl daemon-reload
+    sudo systemctl enable ai-chat.service
+
+    log_info "Systemd сервис создан и включен в автозагрузку"
+}
+
+# ============================================
+# 6. Проверка работы
 # ============================================
 verify() {
     log_info "Проверка работы приложения..."
@@ -195,6 +228,9 @@ main() {
     # Сборка и запуск
     build_and_run
 
+    # Systemd сервис
+    setup_systemd
+
     # Проверка
     verify
 
@@ -204,13 +240,18 @@ main() {
     echo "=========================================="
     echo ""
     echo "  URL: http://localhost:5001"
-    echo "  Логи: docker compose logs -f ai-chat"
+    echo ""
+    echo "  Управление сервисом:"
+    echo "    sudo systemctl status ai-chat    # статус"
+    echo "    sudo systemctl restart ai-chat   # перезапуск"
+    echo "    sudo systemctl stop ai-chat      # остановка"
+    echo "    docker compose logs -f           # логи"
     echo ""
     echo "  Следующие шаги:"
-    echo "  1. Настройте nginx proxy на ai-chat.svrd.ru -> localhost:5001"
+    echo "  1. Настройте nginx proxy: ai-chat.svrd.ru -> localhost:5001"
     echo "  2. Зарегистрируйте приложение в Hub Admin"
     echo "  3. Добавьте HUB_CLIENT_ID и HUB_CLIENT_SECRET в .env"
-    echo "  4. Перезапустите: docker compose restart"
+    echo "  4. Перезапустите: sudo systemctl restart ai-chat"
     echo ""
 }
 

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Severin Hub</title>
+
+    <!-- Подключение шрифтов и иконок -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <!-- Подключение внешних библиотек JS -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+</head>
+<body data-session-id="{{ session_id }}" data-user='{{ user | tojson if user else "{}" }}'>
+
+    <div class="app-layout">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2 class="sidebar-title"><i class="fas fa-sitemap"></i> База знаний</h2>
+                <div class="search-wrapper">
+                    <input type="search" id="treeSearchInput" placeholder="Поиск в базе знаний...">
+                    <button id="resetSearchButton" title="Сбросить поиск" style="display:none;"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <nav class="document-tree" id="documentTree">
+                 <p style="padding: 15px; color: var(--c-secondary-main);">Загрузка базы знаний...</p>
+            </nav>
+        </aside>
+
+        <main class="chat-area">
+            <header class="chat-header">
+                <div class="chat-title-wrapper">
+                    <h2 class="chat-title">Severin Hub</h2>
+                    <span id="currentPromptInfo" class="current-prompt-info">Загрузка...</span>
+                </div>
+                <div class="chat-controls">
+                    <button class="action-btn instructions-btn">Инструкции</button>
+                    <button class="action-btn reset-btn">Сбросить</button>
+                    <div class="user-info" id="userInfo">
+                        <span class="user-name" id="userName">{{ user.display_name if user else 'Гость' }}</span>
+                        {% if user and user.is_admin %}
+                        <a href="/admin" class="action-btn admin-btn" title="Админ-панель"><i class="fas fa-cog"></i></a>
+                        {% endif %}
+                        <a href="/logout" class="action-btn logout-btn" title="Выйти"><i class="fas fa-sign-out-alt"></i></a>
+                    </div>
+                </div>
+            </header>
+
+            <div class="chat-content" id="chat_content">
+                <div class="messages" id="messages"></div>
+                <div class="loading-indicator" id="loadingIndicator">
+                    Обрабатываю запрос
+                    <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                </div>
+            </div>
+
+            <div class="input-area-wrapper">
+                <div class="input-area">
+                    <textarea id="user_input" placeholder="Задайте ваш вопрос..." rows="1"></textarea>
+                    <button id="sendButton"><i class="fas fa-paper-plane"></i>Отправить</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Модальное окно для инструкций -->
+    <div id="instructionsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Системные Инструкции</h3>
+                <button class="close-modal-btn" aria-label="Закрыть">×</button>
+            </div>
+            <textarea id="model_instructions" readonly style="white-space: pre-wrap;"></textarea>
+            <div class="modal-footer">
+                <button>Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для просмотра документа -->
+    <div id="documentViewerModal" class="modal">
+        <div class="modal-content document-viewer-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="documentViewerTitle">Просмотр документа</h3>
+                <button class="close-modal-btn" aria-label="Закрыть">×</button>
+            </div>
+            <div class="document-viewer-toolbar" id="textDocViewerToolbar" style="display:none;">
+                <input type="search" id="documentSearchInput" placeholder="Поиск по документу...">
+                <button class="doc-search-nav-btn" id="docSearchPrev" title="Предыдущее совпадение" disabled><i class="fas fa-chevron-up"></i></button>
+                <button class="doc-search-nav-btn" id="docSearchNext" title="Следующее совпадение" disabled><i class="fas fa-chevron-down"></i></button>
+                <span id="documentSearchStatus"></span>
+                <button class="doc-search-nav-btn" id="docSearchReset" title="Сбросить поиск в документе"><i class="fas fa-times"></i></button>
+            </div>
+             <div class="pdf-viewer-info" id="pdfViewerInfoBar" style="display:none;">
+                Для поиска по PDF используйте встроенные средства вашего PDF-просмотрщика (обычно Ctrl+F или Cmd+F).
+            </div>
+            <div class="document-viewer-main-area">
+                <div class="document-viewer-body" id="documentTextViewerBody" style="display:none;">
+                    <p>Загрузка содержимого документа...</p>
+                </div>
+                <iframe id="pdfViewerIframe" style="display:none;" title="Просмотр PDF"></iframe>
+            </div>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
+
+</body>
+</html>

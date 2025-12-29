@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  ai-chat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-chat
+    restart: unless-stopped
+    ports:
+      - "${FLASK_PORT:-5001}:5001"
+    environment:
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
+      - FLASK_DEBUG=${FLASK_DEBUG:-false}
+      - FLASK_HOST=0.0.0.0
+      - FLASK_PORT=5001
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL_NAME=${GEMINI_MODEL_NAME:-gemini-2.5-flash}
+      - HUB_BASE_URL=${HUB_BASE_URL:-https://ai-hub.svrd.ru}
+      - HUB_CLIENT_ID=${HUB_CLIENT_ID}
+      - HUB_CLIENT_SECRET=${HUB_CLIENT_SECRET}
+      - APP_BASE_URL=${APP_BASE_URL}
+      - DEV_MODE=${DEV_MODE:-false}
+    volumes:
+      # Персистентные данные
+      - ./static/vector_store:/app/static/vector_store:ro
+      - ./static/data:/app/static/data:ro
+      - ./static/text_instructions:/app/static/text_instructions:ro
+      - ./documents_manifest.json:/app/documents_manifest.json:ro
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5001/login', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Nginx reverse proxy (опционально)
+  nginx:
+    image: nginx:alpine
+    container_name: ai-chat-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - ai-chat
+    networks:
+      - app-network
+    profiles:
+      - production
+
+networks:
+  app-network:
+    driver: bridge
